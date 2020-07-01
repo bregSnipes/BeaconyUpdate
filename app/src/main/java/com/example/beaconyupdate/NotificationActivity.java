@@ -9,8 +9,11 @@ public class NotificationActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        System.out.println("NotificationActivity Class!");
+
         // If this activity is the root activity of the task, the app is not running
         if (isTaskRoot()) {
+            System.out.println("Returning to MainActivity!");
             // Start the app before finishing
             final Intent intent = new Intent(this, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

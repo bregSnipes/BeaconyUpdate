@@ -2,6 +2,7 @@ package com.example.beaconyupdate;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
@@ -13,60 +14,259 @@ import no.nordicsemi.android.dfu.DfuServiceListenerHelper;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.LoaderManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.ScanResult;
+import android.content.CursorLoader;
 import android.content.Intent;
+import android.content.Loader;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.media.ToneGenerator;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
+import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.view.View;
+import android.view.WindowManager;
+import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
 
+import java.io.File;
+import java.util.ArrayList;
 import java.util.Observable;
 import java.util.Observer;
 
-public class MainActivity extends AppCompatActivity implements Observer {
+public class MainActivity extends AppCompatActivity implements Observer, LoaderManager.LoaderCallbacks<Cursor> {
+
+
+    private static final String EXTRA_URI = "uri";
+    private static final int EXIT_REQUEST = 88;
 
     private final DfuProgressListener dfuProgressListener = new DfuProgressListenerAdapter() {
         @Override
-        public void onDeviceConnecting(final String deviceAddress) {
-            //progressBar.setIndeterminate(true);
-            //textPercentage.setText(R.string.dfu_status_connecting);
+        public void onDeviceConnecting(String deviceAddress) {
+
         }
 
         @Override
-        public void onDfuProcessStarting(final String deviceAddress) {
-            //progressBar.setIndeterminate(true);
-            //textPercentage.setText(R.string.dfu_status_starting);
+        public void onDeviceConnected(String deviceAddress) {
+
         }
-        ///...
+
+        @Override
+        public void onDfuProcessStarting(String deviceAddress) {
+            txt_state_upload_layout.setText("STARTING OTA...");
+        }
+
+        @Override
+        public void onDfuProcessStarted(String deviceAddress) {
+            txt_state_upload_layout.setText("OTA STARTED!");
+        }
+
+        @Override
+        public void onEnablingDfuMode(String deviceAddress) {
+
+        }
+
+        @Override
+        public void onProgressChanged(String deviceAddress, int percent, float speed, float avgSpeed, int currentPart, int partsTotal) {
+            if(!txt_state_upload_layout.getText().equals("UPLOADING..."))  txt_state_upload_layout.setText("UPLOADING...");
+            txt_progress_upload_layout.setText(percent + " %");
+        }
+
+        @Override
+        public void onFirmwareValidating(String deviceAddress) {
+
+        }
+
+        @Override
+        public void onDeviceDisconnecting(String deviceAddress) {
+
+        }
+
+        @Override
+        public void onDeviceDisconnected(String deviceAddress) {
+
+        }
+
+        @Override
+        public void onDfuCompleted(String deviceAddress) {
+            if(OTA_ENABLED) OTA_ENABLED = false;
+            if(!be.IsScanning())    be.StartScan(0);
+            txt_state_upload_layout.setText("SEARCHING BEACONS...");
+            txt_progress_upload_layout.setText("");
+        }
+
+        @Override
+        public void onDfuAborted(String deviceAddress) {
+
+        }
+
+        @Override
+        public void onError(String deviceAddress, int error, int errorType, String message) {
+
+        }
     };
+
+    private  DfuServiceController controller;
     private BluetoothAdapter bAdapter;
     private BluetoothManager bManager;
     private BluetoothGatt bluetoothGatt;
     private BluetoothGattCallback gattCallback;
+    private BluetoothGattCharacteristic ff8b,ff8a, ffaa;
     private BeUtility be;
     private final int SDK_REQUEST = 33;
     private final int BLUETOOTH_ON_OFF = 88;
     private Button button_fw_home_layout,button_upload_home_layout;
     private EditText edit_name_home_layout;
-    private ConstraintLayout home_layout;
+    private TextView txt_fw_home_layout,txt_state_upload_layout,txt_progress_upload_layout;
+    private ConstraintLayout home_layout,upload_layout;
+    private ArrayList<String> mac_listened;
+    private boolean CONNECTION_STATE;
+    private final int SELECT_FILE_REQ = 1;
+    private static final int SELECT_INIT_FILE_REQ = 2;
+    private Uri fileStreamUri;
+    private String filePath,mPath;
+    private String initFilePath;
+    private Uri initFileStreamUri;
+    BluetoothDevice device;
+    private int fileType;
+    private int fileTypeTmp; // This value is being used when user is selecting a file not to overwrite the old value (in case he/she will cancel selecting file)
+    private boolean statusOk;
+    private boolean OTA_ENABLED;
+    private Integer scope;
+
+    @Override
+    public Loader<Cursor> onCreateLoader(int i, Bundle args) {
+        final Uri uri = args.getParcelable(EXTRA_URI);
+        /*
+         * Some apps, f.e. Google Drive allow to select file that is not on the device. There is no "_data" column handled by that provider. Let's try to obtain
+         * all columns and than check which columns are present.
+         */
+        // final String[] projection = new String[] { MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DATA };
+        return new CursorLoader(this, uri, null /* all columns, instead of projection */, null, null, null);
+    }
+
+    @Override
+    public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+        if (data != null && data.moveToNext()) {
+            /*
+             * Here we have to check the column indexes by name as we have requested for all. The order may be different.
+             */
+            final String fileName = data.getString(data.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)/* 0 DISPLAY_NAME */);
+            final int fileSize = data.getInt(data.getColumnIndex(MediaStore.MediaColumns.SIZE) /* 1 SIZE */);
+            String filePath = null;
+            final int dataIndex = data.getColumnIndex(MediaStore.MediaColumns.DATA);
+            if (dataIndex != -1)
+                filePath = data.getString(dataIndex /* 2 DATA */);
+            if (!TextUtils.isEmpty(filePath))
+                this.filePath = filePath;
+            updateFileInfo(fileName,fileSize,fileType);
+        } else {
+            Utility.makeToast(MainActivity.this,"You have to choose a .zip file first!",0);
+            filePath = null;
+            fileStreamUri = null;
+            txt_fw_home_layout.setText("NO FILE");
+        }
+    }
+
+    private void updateFileInfo(final String fileName, final long fileSize, final int fileType) {
+        txt_fw_home_layout.setText(fileName);
+        final String extension = this.fileType == DfuService.TYPE_AUTO ? "(?i)ZIP" : "(?i)HEX|BIN"; // (?i) =  case insensitive
+        final boolean statusOk = this.statusOk = MimeTypeMap.getFileExtensionFromUrl(fileName).matches(extension);
+
+        // Ask the user for the Init packet file if HEX or BIN files are selected. In case of a ZIP file the Init packets should be included in the ZIP.
+        if (statusOk) {
+            if (fileType != DfuService.TYPE_AUTO) {
+                scope = null;
+                new AlertDialog.Builder(this)
+                        .setTitle(R.string.dfu_file_init_title)
+                        .setMessage(R.string.dfu_file_init_message)
+                        .setNegativeButton(R.string.no, (dialog, which) -> {
+                            initFilePath = null;
+                            initFileStreamUri = null;
+                        })
+                        .setPositiveButton(R.string.yes, (dialog, which) -> {
+                            final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                            intent.setType(DfuService.MIME_TYPE_OCTET_STREAM);
+                            intent.addCategory(Intent.CATEGORY_OPENABLE);
+                            startActivityForResult(intent, SELECT_INIT_FILE_REQ);
+                        })
+                        .show();
+            } else {
+                new AlertDialog.Builder(this).setTitle(R.string.dfu_file_scope_title).setCancelable(false)
+                        .setSingleChoiceItems(R.array.dfu_file_scope, 0, (dialog, which) -> {
+                            switch (which) {
+                                case 0:
+                                    scope = null;
+                                    break;
+                                case 1:
+                                    scope = DfuServiceInitiator.SCOPE_SYSTEM_COMPONENTS;
+                                    break;
+                                case 2:
+                                    scope = DfuServiceInitiator.SCOPE_APPLICATION;
+                                    break;
+                            }
+                        }).setPositiveButton(R.string.ok, (dialogInterface, i) -> {
+                    int index;
+                    if (scope == null) {
+                        index = 0;
+                    } else if (scope == DfuServiceInitiator.SCOPE_SYSTEM_COMPONENTS) {
+                        index = 1;
+                    } else {
+                        index = 2;
+                    }
+                }).show();
+            }
+        }
+    }
+
+
+    @Override
+    public void onLoaderReset(Loader<Cursor> loader) {
+        filePath = null;
+        fileStreamUri = null;
+        statusOk = false;
+    }
+
+    private enum ACTIVE_LAYOUT{
+        HOME,
+        UPLOAD
+    }
+    private ACTIVE_LAYOUT active_layout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        active_layout = ACTIVE_LAYOUT.HOME;
+
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        //DfuServiceListenerHelper.registerProgressListener(this, dfuProgressListener);
+
 
         setGui();
         create_xml_events();
 
+        setGattCallback();
+
         bManager = (BluetoothManager) getSystemService(MainActivity.this.BLUETOOTH_SERVICE);
         bAdapter= bManager.getAdapter();
+
+        mac_listened = new ArrayList<String>();
+        CONNECTION_STATE = false;
 
         be = new BeUtility(this);
         be.AddObserver();
@@ -79,19 +279,12 @@ public class MainActivity extends AppCompatActivity implements Observer {
             bluetooth_ble_state();
         }
 
-
-
-        //startDfuService();  --> Per far partire il DFU
-
-
-        //DfuServiceInitiator.createDfuNotificationChannel(context);   --> Android Oreo o superiore, per visualizzare progresso upload
-
-
     }
 
     private void setGui(){
         //Layouts
         home_layout = findViewById(R.id.home_layout);
+        upload_layout = findViewById(R.id.upload_layout);
 
 
         //Buttons
@@ -101,23 +294,95 @@ public class MainActivity extends AppCompatActivity implements Observer {
 
         //EditTexts
         edit_name_home_layout = findViewById(R.id.edit_name_home_layout);
+
+        //TextViews
+        txt_fw_home_layout = findViewById(R.id.txt_fw_home_layout);
+        txt_state_upload_layout = findViewById(R.id.txt_state_upload_activity);
+        txt_progress_upload_layout = findViewById(R.id.txt_progress_upload_layout);
     }
 
     private void create_xml_events(){
         button_upload_home_layout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if(!be.IsScanning()){
+                if (!statusOk) {
+                    Utility.makeToast(MainActivity.this,"Please, select valid HEX file",0);
+                    return;
+                }
+                if(edit_name_home_layout.getText().length() > 0){
                     be.StartScan(0);
+                    active_layout = ACTIVE_LAYOUT.UPLOAD;
+                    home_layout.setVisibility(View.GONE);
+                    upload_layout.setVisibility(View.VISIBLE);
+                    active_layout=ACTIVE_LAYOUT.UPLOAD;
+                    txt_state_upload_layout.setText("SEARCHING BEACONS...");
+                }
+                else{
+                    Utility.makeToast(MainActivity.this,"Device Name needsto be at least 1 character!",0);
                 }
             }
         });
+        button_fw_home_layout.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                fileTypeTmp = fileType;
+                int index = 0;
+                switch (fileType) {
+                    case DfuService.TYPE_AUTO:
+                        index = 0;
+                        break;
+                    case DfuService.TYPE_SOFT_DEVICE:
+                        index = 1;
+                        break;
+                    case DfuService.TYPE_BOOTLOADER:
+                        index = 2;
+                        break;
+                    case DfuService.TYPE_APPLICATION:
+                        index = 3;
+                        break;
+                }
+                // Show a dialog with file types
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle(R.string.dfu_file_type_title)
+                        .setSingleChoiceItems(R.array.dfu_file_type, index, (dialog, which) -> {
+                            switch (which) {
+                                case 0:
+                                    fileTypeTmp = DfuService.TYPE_AUTO;
+                                    break;
+                                case 1:
+                                    fileTypeTmp = DfuService.TYPE_SOFT_DEVICE;
+                                    break;
+                                case 2:
+                                    fileTypeTmp = DfuService.TYPE_BOOTLOADER;
+                                    break;
+                                case 3:
+                                    fileTypeTmp = DfuService.TYPE_APPLICATION;
+                                    break;
+                            }
+                        })
+                        .setPositiveButton(R.string.ok, (dialog, which) -> openFileChooser())
+                        .setNegativeButton(R.string.cancel, null)
+                        .show();
+            }
+    });
+    }
+
+
+    private void openFileChooser(){
+        final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType(fileTypeTmp == DfuService.TYPE_AUTO ? DfuService.MIME_TYPE_ZIP : DfuService.MIME_TYPE_OCTET_STREAM);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent, SELECT_FILE_REQ);
     }
 
     private void startDfuService(BluetoothDevice mSelectedDevice){
-       /* final DfuServiceInitiator starter = new DfuServiceInitiator(mSelectedDevice.getAddress())
+        System.out.println("Start DFU Service!" + "\n" + "Device uploading: " + mSelectedDevice.getAddress());
+        final DfuServiceInitiator starter = new DfuServiceInitiator(mSelectedDevice.getAddress())
                 .setDeviceName(mSelectedDevice.getName())
-                .setKeepBond(keepBond);
+                .setKeepBond(false);
+
+        //starter.createDfuNotificationChannel(this);
         // If you want to have experimental buttonless DFU feature (DFU from SDK 12.x only!) supported call
         // additionally:
         starter.setUnsafeExperimentalButtonlessServiceInSecureDfuEnabled(true);
@@ -128,19 +393,24 @@ public class MainActivity extends AppCompatActivity implements Observer {
         // data packet. This delay gives the DFU target more time to perpare flash memory, causing less
         // packets being dropped and more reliable transfer. Detection of packets being lost would cause
         // automatic switch to PRN = 1, making the DFU very slow (but reliable).
-        stater.setPrepareDataObjectDelay(300L);
+        starter.setPrepareDataObjectDelay(300L);
 
         // Init packet is required by Bootloader/DFU from SDK 7.0+ if HEX or BIN file is given above.
         // In case of a ZIP file, the init packet (a DAT file) must be included inside the ZIP file.
-        if (mFileType == DfuService.TYPE_AUTO)
-            starter.setZip(mFileStreamUri, mFilePath);
-        else {
-            starter.setBinOrHex(mFileType, mFileStreamUri, mFilePath).setInitFile(mInitFileStreamUri, mInitFilePath);
+        if (fileType == DfuService.TYPE_AUTO) {
+            System.out.println("Uri: " + fileStreamUri + "\n" + "Path: " + filePath);
+            starter.setZip(fileStreamUri, filePath);
         }
-        final DfuServiceController controller = starter.start(this, DfuService.class);
+        else {
+            starter.setBinOrHex(fileType, fileStreamUri, filePath).setInitFile(initFileStreamUri, initFilePath);
+        }
+         controller = starter.start(this, DfuService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            starter.createDfuNotificationChannel(this);
+        }
+        //starter.start(this, DfuService.class);
         // You may use the controller to pause, resume or abort the DFU process.
 
-        */
     }
 
     @Override
@@ -158,13 +428,36 @@ public class MainActivity extends AppCompatActivity implements Observer {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if(android.os.Build.VERSION.SDK_INT >= 21)  //Dall'API 21 in poi è possibile rimuovere l'App appena chiusa dalla lista delle app recenti.
-        {
-            finishAndRemoveTask();
-        }
-        else
-        {
-            finish();   //Se API<21, allora rimarrà nella lista delle App recenti, ma il processo è completamente finito.
+        try {
+            if (!controller.isAborted()) controller.abort();
+        }catch(Exception e){}
+        if(CONNECTION_STATE)    bluetoothGatt.disconnect();
+        if(be.IsScanning()) be.StopScan();
+    }
+
+    @Override
+    public void onBackPressed() {
+        //super.onBackPressed();
+        switch(active_layout){
+            case HOME:
+                /*Intent i = new Intent(MainActivity.this,Popup.class);
+                i.putExtra("action","exit");    //PRIMA ERA RETURN TO SCAN
+                startActivityForResult(i,EXIT_REQUEST);*/
+                break;
+            case UPLOAD:
+                if(OTA_ENABLED) OTA_ENABLED = false;
+                try {
+                    if (!controller.isAborted()) controller.abort();
+                }catch(Exception e){}
+                upload_layout.setVisibility(View.GONE);
+                home_layout.setVisibility(View.VISIBLE);
+                active_layout = ACTIVE_LAYOUT.HOME;
+                txt_progress_upload_layout.setText("");
+                txt_state_upload_layout.setText("");
+                if(!mac_listened.isEmpty()) mac_listened.clear();
+                if(CONNECTION_STATE)    bluetoothGatt.disconnect();
+                if(be.IsScanning()) be.StopScan();
+                break;
         }
     }
 
@@ -178,6 +471,76 @@ public class MainActivity extends AppCompatActivity implements Observer {
         else if(requestCode == BLUETOOTH_ON_OFF && resultCode == Activity.RESULT_CANCELED){
             Utility.makeToast(MainActivity.this,"BLUETOOTH NEEDS\nTO BE ON TO WORK!",0);
             MainActivity.this.finish();
+        }
+        else if(requestCode == SELECT_FILE_REQ && resultCode == Activity.RESULT_OK){
+
+            // clear previous data
+            fileType = fileTypeTmp;
+            filePath = null;
+            fileStreamUri = null;
+
+            // and read new one
+            final Uri uri = data.getData();
+            mPath = uri.getPath();
+            /*
+             * The URI returned from application may be in 'file' or 'content' schema. 'File' schema allows us to create a File object and read details from if
+             * directly. Data from 'Content' schema must be read by Content Provider. To do that we are using a Loader.
+             */
+            if(uri.getScheme().equals("content")) {
+                // an Uri has been returned
+                fileStreamUri = uri;
+                // if application returned Uri for streaming, let's us it. Does it works?
+                // FIXME both Uris works with Google Drive app. Why both? What's the difference? How about other apps like DropBox?
+                final Bundle extras = data.getExtras();
+                if (extras != null && extras.containsKey(Intent.EXTRA_STREAM))
+                    fileStreamUri = extras.getParcelable(Intent.EXTRA_STREAM);
+
+                // file name and size must be obtained from Content Provider
+                final Bundle bundle = new Bundle();
+                bundle.putParcelable(EXTRA_URI, uri);
+                getLoaderManager().restartLoader(SELECT_FILE_REQ, bundle, this);
+            }
+        }
+        else if(requestCode == SELECT_FILE_REQ && resultCode == Activity.RESULT_CANCELED){
+            //Do nothing
+        }
+        else if(requestCode == SELECT_INIT_FILE_REQ && resultCode == Activity.RESULT_OK){
+            initFilePath = null;
+            initFileStreamUri = null;
+
+            // and read new one
+            final Uri uri = data.getData();
+            /*
+             * The URI returned from application may be in 'file' or 'content' schema. 'File' schema allows us to create a File object and read details from if
+             * directly. Data from 'Content' schema must be read by Content Provider. To do that we are using a Loader.
+             */
+            if (uri.getScheme().equals("file")) {
+                // the direct path to the file has been returned
+                initFilePath = uri.getPath();
+            } else if (uri.getScheme().equals("content")) {
+                // an Uri has been returned
+                initFileStreamUri = uri;
+                // if application returned Uri for streaming, let's us it. Does it works?
+                // FIXME both Uris works with Google Drive app. Why both? What's the difference? How about other apps like DropBox?
+                final Bundle extras = data.getExtras();
+                if (extras != null && extras.containsKey(Intent.EXTRA_STREAM))
+                    initFileStreamUri = extras.getParcelable(Intent.EXTRA_STREAM);
+            }
+        }
+        else if(requestCode == EXIT_REQUEST && resultCode == Activity.RESULT_OK){
+
+            //Close Application
+            if(android.os.Build.VERSION.SDK_INT >= 21)  //Dall'API 21 in poi è possibile rimuovere l'App appena chiusa dalla lista delle app recenti.
+            {
+                finishAndRemoveTask();
+            }
+            else
+            {
+                finish();   //Se API<21, allora rimarrà nella lista delle App recenti, ma il processo è completamente finito.
+            }
+        }
+        else if(requestCode == EXIT_REQUEST && resultCode == Activity.RESULT_CANCELED){
+            //Do nothing
         }
     }
 
@@ -227,24 +590,169 @@ public class MainActivity extends AppCompatActivity implements Observer {
         //Scan Results
 
         if(String.valueOf(o).equals("stop")){
-            System.out.println("STOP!");
+            System.out.println("SCAN STOPPED!");
             return;
         }
 
-        ScanResult result = (ScanResult)o;
-        BluetoothDevice device = result.getDevice();
+        ScanResult result = (ScanResult) o;
+        device = result.getDevice();
 
-        try {
-            if (device.getName().equalsIgnoreCase(edit_name_home_layout.getText().toString())) {
-                //Device Name scelto
-                if (be.IsScanning()) be.StopScan();
+        if(!OTA_ENABLED) {
+
+            try {
+                if (device.getName().equalsIgnoreCase(edit_name_home_layout.getText().toString())) {
+                    //Device Name scelto
+                    if (mac_listened.size() > 0) {
+                        boolean found = false;
+                        for (int i = 0; i < mac_listened.size(); i++) {
+                            if (mac_listened.get(i).equals(device.getAddress())) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            if (be.IsScanning()) be.StopScan();
+                            bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
+                            mac_listened.add(device.getAddress());
+                        } else {
+                            //Do nothing
+                        }
+                    } else {
+                        if (be.IsScanning()) be.StopScan();
+                        bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
+                        mac_listened.add(device.getAddress());
+                    }
+                }
+            } catch (Exception e) {
+                //Do nothing
             }
-        }
-        catch(Exception e){
-            //Do nothing
-        }
 
 
+        }
+        else{
+            //Scan per dispositivo OTA
+
+            try{
+                if (device.getName().equalsIgnoreCase("DfuTarg")) {
+                    //Device Name scelto
+                    if (be.IsScanning()) be.StopScan();
+                    startDfuService(device);
+                }
+            }
+            catch(Exception e){
+                //Do nothing
+            }
+
+
+        }
 
     }
+
+    private void setGattCallback(){
+        gattCallback = new BluetoothGattCallback() {
+            @Override
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                super.onConnectionStateChange(gatt, status, newState);
+
+                if(newState == BluetoothGatt.STATE_CONNECTED){
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            txt_state_upload_layout.setText(gatt.getDevice().getAddress().toUpperCase() + " CONNECTED!\nPAIRING...");
+                        }
+                    });
+                    CONNECTION_STATE = true;
+                    ff8a = null;
+                    ff8b = null;
+                    ffaa = null;
+                    bluetoothGatt.discoverServices();
+                }
+                else if(newState == BluetoothGatt.STATE_DISCONNECTED){
+                    CONNECTION_STATE = false;
+                    if(OTA_ENABLED){
+                        if(!be.IsScanning())    be.StartScan(0);
+                    }
+                }
+            }
+
+            @Override
+            public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                super.onServicesDiscovered(gatt, status);
+                ArrayList<BluetoothGattService> servizi = new ArrayList<>(gatt.getServices());
+                ArrayList<BluetoothGattCharacteristic> caratteristiche = new ArrayList<>();
+
+                for (int i = 0; i < servizi.size(); i++) {
+                    if (servizi.get(i).getUuid().toString().contains("ff80")) {
+                        caratteristiche.addAll(servizi.get(i).getCharacteristics());
+                        for (int j = 0; j < caratteristiche.size(); j++) {
+                            if (caratteristiche.get(j).getUuid().toString().contains("ff8b")) {
+                                ff8b = caratteristiche.get(j);
+                                ff8b.setValue(Utility.hexStringToByteArray("ff"));
+                            } else if (caratteristiche.get(j).getUuid().toString().contains("ff8a")) {
+                                ff8a = caratteristiche.get(j);
+                                ff8a.setValue(Utility.hexStringToByteArray("383838383838"));
+                            }
+                        }
+                    } else if (servizi.get(i).getUuid().toString().contains("ff82")) {
+                        caratteristiche.addAll(servizi.get(i).getCharacteristics());
+                        for (int j = 0; j < caratteristiche.size(); j++) {
+                            if (caratteristiche.get(j).getUuid().toString().contains("ffaa")) {
+                                ffaa = caratteristiche.get(j);
+                                ffaa.setValue(Utility.hexStringToByteArray("01"));
+                            }
+                        }
+                    }
+                }
+
+                if(ff8a != null && ff8b != null && ffaa != null){
+                    System.out.println("Beacon supports OTA!");
+                    gatt.writeCharacteristic(ff8a);
+                }
+                else{
+                    System.out.println("Beacon doesn't support OTA!");
+                    gatt.disconnect();
+                }
+
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                super.onCharacteristicRead(gatt, characteristic, status);
+            }
+
+            @Override
+            public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                super.onCharacteristicWrite(gatt, characteristic, status);
+                if(characteristic == ff8a){
+                    gatt.writeCharacteristic(ff8b);
+                }
+                else if(characteristic == ff8b){
+                    System.out.println("Beacon paired!");
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            txt_state_upload_layout.setText("BEACONY PAIRED!");
+                        }
+                    });
+                    gatt.writeCharacteristic(ffaa);
+                }
+                else if(characteristic == ffaa){
+                    System.out.println("OTA Activated!");
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            txt_state_upload_layout.setText("OTA ACTIVATED!");
+                        }
+                    });
+                    OTA_ENABLED = true;
+                }
+            }
+
+            @Override
+            public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                super.onCharacteristicChanged(gatt, characteristic);
+            }
+        };
+    }
+
 }
