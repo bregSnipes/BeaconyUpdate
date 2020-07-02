@@ -220,7 +220,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                         })
                         .show();
             } else {
-                new AlertDialog.Builder(this).setTitle(R.string.dfu_file_scope_title).setCancelable(false)
+                /*new AlertDialog.Builder(this).setTitle(R.string.dfu_file_scope_title).setCancelable(false)
                         .setSingleChoiceItems(R.array.dfu_file_scope, 0, (dialog, which) -> {
                             switch (which) {
                                 case 0:
@@ -242,7 +242,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                     } else {
                         index = 2;
                     }
-                }).show();
+                }).show();*/
             }
         }
     }

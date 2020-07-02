@@ -69,9 +69,6 @@
 	<string name="dfu_file_type_title">Select file type</string>
 	<string-array name="dfu_file_type">
 		<item>Distribution packet (ZIP)</item>
-		<item>Soft Device</item>
-		<item>Bootloader</item>
-		<item>Application</item>
 	</string-array>
 	<string name="dfu_file_init_title">Init packet</string>
 	<string name="dfu_file_init_message">Do you want to select the Init packet file?\n
