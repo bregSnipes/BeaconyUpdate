@@ -28,6 +28,8 @@ import android.content.Intent;
 import android.content.Loader;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.drawable.Drawable;
+import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.net.Uri;
 import android.os.Build;
@@ -35,11 +37,13 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.provider.MediaStore;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -52,71 +56,78 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
 
 
     private static final String EXTRA_URI = "uri";
-    private static final int EXIT_REQUEST = 88;
+    private static final int EXIT_REQUEST = 154;
 
     private final DfuProgressListener dfuProgressListener = new DfuProgressListenerAdapter() {
         @Override
         public void onDeviceConnecting(String deviceAddress) {
-
+            Log.d("STATUS","On Device Connecting");
         }
 
         @Override
         public void onDeviceConnected(String deviceAddress) {
-
+            Log.d("STATUS","On Device Connected");
         }
 
         @Override
         public void onDfuProcessStarting(String deviceAddress) {
+            Log.d("STATUS","On Dfu Process Starting");
             txt_state_upload_layout.setText("STARTING OTA...");
         }
 
         @Override
         public void onDfuProcessStarted(String deviceAddress) {
+            Log.d("STATUS","On Dfu Process Started");
             txt_state_upload_layout.setText("OTA STARTED!");
         }
 
         @Override
         public void onEnablingDfuMode(String deviceAddress) {
-
+            Log.d("STATUS","On Enabling Dfu Mode");
         }
 
         @Override
         public void onProgressChanged(String deviceAddress, int percent, float speed, float avgSpeed, int currentPart, int partsTotal) {
             if(!txt_state_upload_layout.getText().equals("UPLOADING..."))  txt_state_upload_layout.setText("UPLOADING...");
             txt_progress_upload_layout.setText(percent + " %");
+            if(progressBar.getVisibility() != View.VISIBLE) progressBar.setVisibility(View.VISIBLE);
+            progressBar.setProgress(percent);
         }
 
         @Override
         public void onFirmwareValidating(String deviceAddress) {
-
+            Log.d("STATUS","On Firmware Validating");
         }
 
         @Override
         public void onDeviceDisconnecting(String deviceAddress) {
-
+            Log.d("STATUS","On Device Disconnecting");
         }
 
         @Override
         public void onDeviceDisconnected(String deviceAddress) {
-
+            Log.d("STATUS","On Device Disconnected");
         }
 
         @Override
         public void onDfuCompleted(String deviceAddress) {
+            Log.d("STATUS","On Dfu Completed");
             if(OTA_ENABLED) OTA_ENABLED = false;
             if(!be.IsScanning())    be.StartScan(0);
             txt_state_upload_layout.setText("SEARCHING BEACONS...");
             txt_progress_upload_layout.setText("");
+            if(progressBar.getVisibility() != View.GONE) progressBar.setVisibility(View.GONE);
+            timer.start();
         }
 
         @Override
         public void onDfuAborted(String deviceAddress) {
-
+            Log.d("STATUS","On Dfu Aborted");
         }
 
         @Override
         public void onError(String deviceAddress, int error, int errorType, String message) {
-
+            Log.d("STATUS","On Error");
         }
     };
 
@@ -147,6 +158,9 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
     private boolean statusOk;
     private boolean OTA_ENABLED;
     private Integer scope;
+    private ProgressBar progressBar;
+    private CountDownTimer timer;
+    ToneGenerator tone;
 
     @Override
     public Loader<Cursor> onCreateLoader(int i, Bundle args) {
@@ -265,6 +279,8 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         bManager = (BluetoothManager) getSystemService(MainActivity.this.BLUETOOTH_SERVICE);
         bAdapter= bManager.getAdapter();
 
+        tone = new ToneGenerator(AudioManager.STREAM_MUSIC, 100);
+
         mac_listened = new ArrayList<String>();
         CONNECTION_STATE = false;
 
@@ -299,7 +315,36 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         txt_fw_home_layout = findViewById(R.id.txt_fw_home_layout);
         txt_state_upload_layout = findViewById(R.id.txt_state_upload_activity);
         txt_progress_upload_layout = findViewById(R.id.txt_progress_upload_layout);
-    }
+
+        //ProgressBar
+        progressBar = findViewById(R.id.progressbar_upload_layout);
+        Drawable draw = getResources().getDrawable(R.drawable.custom_progressbar);
+        progressBar.setProgressDrawable(draw);
+
+        //CountDownTimer
+        timer = new CountDownTimer(30000,30000) {
+            @Override
+            public void onTick(long l) {
+                //Do nothing
+            }
+
+            @Override
+            public void onFinish() {
+
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        while(!CONNECTION_STATE && !OTA_ENABLED && active_layout == ACTIVE_LAYOUT.UPLOAD){
+                            tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD,150);
+                            try {
+                                Thread.sleep(1000);
+                            }catch(Exception e){}
+                        }
+                    }
+                }).start();
+            }
+        };
+}
 
     private void create_xml_events(){
         button_upload_home_layout.setOnClickListener(new View.OnClickListener() {
@@ -316,6 +361,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                     upload_layout.setVisibility(View.VISIBLE);
                     active_layout=ACTIVE_LAYOUT.UPLOAD;
                     txt_state_upload_layout.setText("SEARCHING BEACONS...");
+                    timer.start();
                 }
                 else{
                     Utility.makeToast(MainActivity.this,"Device Name needsto be at least 1 character!",0);
@@ -431,6 +477,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         try {
             if (!controller.isAborted()) controller.abort();
         }catch(Exception e){}
+        timer.cancel();
         if(CONNECTION_STATE)    bluetoothGatt.disconnect();
         if(be.IsScanning()) be.StopScan();
     }
@@ -440,20 +487,22 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         //super.onBackPressed();
         switch(active_layout){
             case HOME:
-                /*Intent i = new Intent(MainActivity.this,Popup.class);
+                Intent i = new Intent(MainActivity.this,Popup.class);
                 i.putExtra("action","exit");    //PRIMA ERA RETURN TO SCAN
-                startActivityForResult(i,EXIT_REQUEST);*/
+                startActivityForResult(i,EXIT_REQUEST);
                 break;
             case UPLOAD:
                 if(OTA_ENABLED) OTA_ENABLED = false;
                 try {
                     if (!controller.isAborted()) controller.abort();
                 }catch(Exception e){}
+                timer.cancel();
                 upload_layout.setVisibility(View.GONE);
                 home_layout.setVisibility(View.VISIBLE);
                 active_layout = ACTIVE_LAYOUT.HOME;
                 txt_progress_upload_layout.setText("");
                 txt_state_upload_layout.setText("");
+                if(progressBar.getVisibility() != View.GONE) progressBar.setVisibility(View.GONE);
                 if(!mac_listened.isEmpty()) mac_listened.clear();
                 if(CONNECTION_STATE)    bluetoothGatt.disconnect();
                 if(be.IsScanning()) be.StopScan();
@@ -600,7 +649,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         if(!OTA_ENABLED) {
 
             try {
-                if (device.getName().equalsIgnoreCase(edit_name_home_layout.getText().toString())) {
+                if (device.getName().toLowerCase().contains(edit_name_home_layout.getText().toString().toLowerCase())) {
                     //Device Name scelto
                     if (mac_listened.size() > 0) {
                         boolean found = false;
@@ -611,6 +660,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                             }
                         }
                         if (!found) {
+                            timer.cancel();
                             if (be.IsScanning()) be.StopScan();
                             bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
                             mac_listened.add(device.getAddress());
@@ -618,6 +668,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                             //Do nothing
                         }
                     } else {
+                        timer.cancel();
                         if (be.IsScanning()) be.StopScan();
                         bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
                         mac_listened.add(device.getAddress());
