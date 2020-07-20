@@ -57,6 +57,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
 
     private static final String EXTRA_URI = "uri";
     private static final int EXIT_REQUEST = 154;
+    public static boolean RED_LIGHT;
 
     private final DfuProgressListener dfuProgressListener = new DfuProgressListenerAdapter() {
         @Override
@@ -659,7 +660,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                                 break;
                             }
                         }
-                        if (!found) {
+                        if (!found && !RED_LIGHT) {
                             timer.cancel();
                             if (be.IsScanning()) be.StopScan();
                             bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
@@ -668,10 +669,15 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                             //Do nothing
                         }
                     } else {
-                        timer.cancel();
-                        if (be.IsScanning()) be.StopScan();
-                        bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
-                        mac_listened.add(device.getAddress());
+                        if(!RED_LIGHT) {
+                            timer.cancel();
+                            if (be.IsScanning()) be.StopScan();
+                            bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
+                            mac_listened.add(device.getAddress());
+                        }
+                        else{
+                            //Do Nothing
+                        }
                     }
                 }
             } catch (Exception e) {
