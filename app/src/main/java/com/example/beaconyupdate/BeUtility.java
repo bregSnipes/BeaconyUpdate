@@ -57,7 +57,7 @@ public class BeUtility extends Observable{
 
     public void StartScan(int interval){
 
-        if(MainActivity.RED_LIGHT)  MainActivity.RED_LIGHT = false;
+        //if(MainActivity.RED_LIGHT)  MainActivity.RED_LIGHT = false;
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
@@ -77,7 +77,7 @@ public class BeUtility extends Observable{
 
     public void StopScan(){
 
-        if(!MainActivity.RED_LIGHT) MainActivity.RED_LIGHT = true;
+        //if(!MainActivity.RED_LIGHT) MainActivity.RED_LIGHT = true;
         scanner.stopScan(callback);
         SCAN_STATE = false;
         AsyncTask.execute(new Runnable() {

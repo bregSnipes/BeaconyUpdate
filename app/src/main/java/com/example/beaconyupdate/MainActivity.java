@@ -58,7 +58,8 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
 
     private static final String EXTRA_URI = "uri";
     private static final int EXIT_REQUEST = 154;
-    public static boolean RED_LIGHT;
+    public boolean STOP_SCAN;
+    //public static boolean RED_LIGHT;
 
     private final DfuProgressListener dfuProgressListener = new DfuProgressListenerAdapter() {
         @Override
@@ -115,8 +116,9 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         @Override
         public void onDfuCompleted(String deviceAddress) {
             Log.d("CHECK22","On Dfu Completed");
+            if(STOP_SCAN)   STOP_SCAN = false;
             if(OTA_ENABLED) OTA_ENABLED = false;
-            if(!be.IsScanning())    be.StartScan(0);
+            //if(!be.IsScanning())    be.StartScan(0);
             txt_state_upload_layout.setText("SEARCHING BEACONS...");
             txt_progress_upload_layout.setText("");
             if(progressBar.getVisibility() != View.GONE) progressBar.setVisibility(View.GONE);
@@ -131,8 +133,9 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         @Override
         public void onError(String deviceAddress, int error, int errorType, String message) {
             Log.d("CHECK22","On Error");
+            if(STOP_SCAN) STOP_SCAN = false;
             if(OTA_ENABLED) OTA_ENABLED = false;
-            if(!be.IsScanning())    be.StartScan(0);
+            //if(!be.IsScanning())    be.StartScan(0);
             txt_state_upload_layout.setText("SEARCHING BEACONS...");
             txt_progress_upload_layout.setText("");
             if(progressBar.getVisibility() != View.GONE) progressBar.setVisibility(View.GONE);
@@ -393,6 +396,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                     return;
                 }
                 if(edit_name_home_layout.getText().length() > 0){
+                    STOP_SCAN = false;
                     be.StartScan(0);
                     active_layout = ACTIVE_LAYOUT.UPLOAD;
                     home_layout.setVisibility(View.GONE);
@@ -530,6 +534,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 startActivityForResult(i,EXIT_REQUEST);
                 break;
             case UPLOAD:
+                if(STOP_SCAN)   STOP_SCAN = false;
                 if(OTA_ENABLED) OTA_ENABLED = false;
                 try {
                     if (!controller.isAborted()) controller.abort();
@@ -544,6 +549,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 if(!mac_listened.isEmpty()) mac_listened.clear();
                 if(CONNECTION_STATE)    bluetoothGatt.disconnect();
                 if(be.IsScanning()) be.StopScan();
+                bluetoothGatt.close();
                 break;
         }
     }
@@ -681,6 +687,11 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
             return;
         }
 
+        if(STOP_SCAN){
+            Log.d("CHECK22", "SCANNING WHILE CONNECTED!");
+            return;
+        }
+
         Log.d("CHECK22", "Scanning...");
 
         ScanResult result = (ScanResult) o;
@@ -699,24 +710,20 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                                 break;
                             }
                         }
-                        if (!found && !RED_LIGHT) {
+                        if (!found) {
+                            STOP_SCAN = false;
                             timer.cancel();
-                            if (be.IsScanning()) be.StopScan();
+                            //if (be.IsScanning()) be.StopScan();
                             bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
                             mac_listened.add(device.getAddress());
                         } else {
                             //Do nothing
                         }
                     } else {
-                        if(!RED_LIGHT) {
                             timer.cancel();
-                            if (be.IsScanning()) be.StopScan();
+                            //if (be.IsScanning()) be.StopScan();
                             bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
                             mac_listened.add(device.getAddress());
-                        }
-                        else{
-                            //Do Nothing
-                        }
                     }
                 }
             } catch (Exception e) {
@@ -730,7 +737,8 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
             try{
                 if (device.getName().equalsIgnoreCase("DfuTarg") && result.getRssi() >= RSSI_VALUE) {
                     //Device Name scelto
-                    if (be.IsScanning()) be.StopScan();
+                    //if (be.IsScanning()) be.StopScan();
+                    STOP_SCAN = true;
                     startDfuService(device);
                 }
             }
@@ -766,7 +774,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 else if(newState == BluetoothGatt.STATE_DISCONNECTED){
                     Log.d("CHECK22", "DISCONNECTED FROM DEVICE: " + gatt.getDevice().getAddress().toUpperCase());
                     CONNECTION_STATE = false;
-                    if(OTA_ENABLED){
+                    /*if(OTA_ENABLED){
                         if(!be.IsScanning())    be.StartScan(0);
                     }
                     else if(!OTA_ENABLED && active_layout == ACTIVE_LAYOUT.UPLOAD){
@@ -775,7 +783,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                         txt_progress_upload_layout.setText("");
                         if(progressBar.getVisibility() != View.GONE) progressBar.setVisibility(View.GONE);
                         timer.start();
-                    }
+                    }*/
                 }
             }
 
@@ -848,6 +856,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                             txt_state_upload_layout.setText("OTA ACTIVATED!");
                         }
                     });
+                    STOP_SCAN = false;
                     OTA_ENABLED = true;
                 }
             }
