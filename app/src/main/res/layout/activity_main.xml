@@ -34,6 +34,31 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="@+id/row2_home_layout" />
 
+        <EditText
+            android:id="@+id/edit_name_home_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="20dp"
+            android:layout_marginRight="20dp"
+            android:ems="10"
+            android:inputType="textPersonName"
+            android:textAlignment="center"
+            app:layout_constraintBottom_toTopOf="@+id/row2_home_layout"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/row3_home_layout" />
+
+        <SeekBar
+            android:id="@+id/seekbar_rssi_home_layout"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:max="100"
+            android:progress="1"
+            app:layout_constraintBottom_toTopOf="@+id/row1_home_layout"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/row5_home_layout" />
+
         <TextView
             android:id="@+id/txt_fw_home_layout"
             android:layout_width="wrap_content"
@@ -42,9 +67,39 @@
             android:text="NO FILE"
             android:textSize="16sp"
             android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@+id/row4_home_layout"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="@+id/row0_home_layout" />
+
+        <TextView
+            android:id="@+id/txt_name_home_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:text="DEVICE NAME TO SEARCH"
+            android:textColor="@color/red"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@+id/row3_home_layout"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/row1_home_layout" />
+
+        <TextView
+            android:id="@+id/txt_rssi_home_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:text="RSSI LIMIT: 0 dBm"
+            android:textAlignment="center"
+            android:textColor="@color/red"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@+id/row5_home_layout"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/row4_home_layout" />
 
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/row0_home_layout"
@@ -74,33 +129,19 @@
             android:orientation="horizontal"
             app:layout_constraintGuide_percent="0.63" />
 
-        <TextView
-            android:id="@+id/txt_name_home_layout"
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/row4_home_layout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="DEVICE NAME TO SEARCH"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="@color/red"
-            android:maxLines="1"
-            app:layout_constraintBottom_toTopOf="@+id/row3_home_layout"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="@+id/row1_home_layout" />
+            android:orientation="horizontal"
+            app:layout_constraintGuide_percent="0.30" />
 
-        <EditText
-            android:id="@+id/edit_name_home_layout"
-            android:layout_width="match_parent"
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/row5_home_layout"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:ems="10"
-            android:inputType="textPersonName"
-            android:layout_marginLeft="20dp"
-            android:layout_marginRight="20dp"
-            android:textAlignment="center"
-            app:layout_constraintBottom_toTopOf="@+id/row2_home_layout"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="@+id/row3_home_layout" />
+            android:orientation="horizontal"
+            app:layout_constraintGuide_percent="0.40" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout

@@ -44,6 +44,7 @@ import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -62,33 +63,34 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
     private final DfuProgressListener dfuProgressListener = new DfuProgressListenerAdapter() {
         @Override
         public void onDeviceConnecting(String deviceAddress) {
-            Log.d("STATUS","On Device Connecting");
+            Log.d("CHECK22","On Device Connecting");
         }
 
         @Override
         public void onDeviceConnected(String deviceAddress) {
-            Log.d("STATUS","On Device Connected");
+            Log.d("CHECK22","On Device Connected");
         }
 
         @Override
         public void onDfuProcessStarting(String deviceAddress) {
-            Log.d("STATUS","On Dfu Process Starting");
+            Log.d("CHECK22","On Dfu Process Starting");
             txt_state_upload_layout.setText("STARTING OTA...");
         }
 
         @Override
         public void onDfuProcessStarted(String deviceAddress) {
-            Log.d("STATUS","On Dfu Process Started");
+            Log.d("CHECK22","On Dfu Process Started");
             txt_state_upload_layout.setText("OTA STARTED!");
         }
 
         @Override
         public void onEnablingDfuMode(String deviceAddress) {
-            Log.d("STATUS","On Enabling Dfu Mode");
+            Log.d("CHECK22","On Enabling Dfu Mode");
         }
 
         @Override
         public void onProgressChanged(String deviceAddress, int percent, float speed, float avgSpeed, int currentPart, int partsTotal) {
+            Log.d("CHECK22", "Uploading...");
             if(!txt_state_upload_layout.getText().equals("UPLOADING..."))  txt_state_upload_layout.setText("UPLOADING...");
             txt_progress_upload_layout.setText(percent + " %");
             if(progressBar.getVisibility() != View.VISIBLE) progressBar.setVisibility(View.VISIBLE);
@@ -97,22 +99,22 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
 
         @Override
         public void onFirmwareValidating(String deviceAddress) {
-            Log.d("STATUS","On Firmware Validating");
+            Log.d("CHECK22","On Firmware Validating");
         }
 
         @Override
         public void onDeviceDisconnecting(String deviceAddress) {
-            Log.d("STATUS","On Device Disconnecting");
+            Log.d("CHECK22","On Device Disconnecting");
         }
 
         @Override
         public void onDeviceDisconnected(String deviceAddress) {
-            Log.d("STATUS","On Device Disconnected");
+            Log.d("CHECK22","On Device Disconnected");
         }
 
         @Override
         public void onDfuCompleted(String deviceAddress) {
-            Log.d("STATUS","On Dfu Completed");
+            Log.d("CHECK22","On Dfu Completed");
             if(OTA_ENABLED) OTA_ENABLED = false;
             if(!be.IsScanning())    be.StartScan(0);
             txt_state_upload_layout.setText("SEARCHING BEACONS...");
@@ -123,12 +125,18 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
 
         @Override
         public void onDfuAborted(String deviceAddress) {
-            Log.d("STATUS","On Dfu Aborted");
+            Log.d("CHECK22","On Dfu Aborted");
         }
 
         @Override
         public void onError(String deviceAddress, int error, int errorType, String message) {
-            Log.d("STATUS","On Error");
+            Log.d("CHECK22","On Error");
+            if(OTA_ENABLED) OTA_ENABLED = false;
+            if(!be.IsScanning())    be.StartScan(0);
+            txt_state_upload_layout.setText("SEARCHING BEACONS...");
+            txt_progress_upload_layout.setText("");
+            if(progressBar.getVisibility() != View.GONE) progressBar.setVisibility(View.GONE);
+            timer.start();
         }
     };
 
@@ -139,11 +147,15 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
     private BluetoothGattCallback gattCallback;
     private BluetoothGattCharacteristic ff8b,ff8a, ffaa;
     private BeUtility be;
+    private int progressSeekBar = 0;
+    private int RSSI_UNIT = 0;
+    private int RSSI_VALUE;
     private final int SDK_REQUEST = 33;
     private final int BLUETOOTH_ON_OFF = 88;
     private Button button_fw_home_layout,button_upload_home_layout;
     private EditText edit_name_home_layout;
-    private TextView txt_fw_home_layout,txt_state_upload_layout,txt_progress_upload_layout;
+    private TextView txt_fw_home_layout,txt_state_upload_layout,txt_progress_upload_layout,txt_rssi_home_layout;
+    private SeekBar seekbar_rssi_home_layout;
     private ConstraintLayout home_layout,upload_layout;
     private ArrayList<String> mac_listened;
     private boolean CONNECTION_STATE;
@@ -316,11 +328,15 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         txt_fw_home_layout = findViewById(R.id.txt_fw_home_layout);
         txt_state_upload_layout = findViewById(R.id.txt_state_upload_activity);
         txt_progress_upload_layout = findViewById(R.id.txt_progress_upload_layout);
+        txt_rssi_home_layout = findViewById(R.id.txt_rssi_home_layout);
 
         //ProgressBar
         progressBar = findViewById(R.id.progressbar_upload_layout);
         Drawable draw = getResources().getDrawable(R.drawable.custom_progressbar);
         progressBar.setProgressDrawable(draw);
+
+        //Seekbar
+        seekbar_rssi_home_layout = findViewById(R.id.seekbar_rssi_home_layout);
 
         //CountDownTimer
         timer = new CountDownTimer(30000,30000) {
@@ -348,6 +364,27 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
 }
 
     private void create_xml_events(){
+
+        seekbar_rssi_home_layout.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+
+                progressSeekBar = i;
+                txt_rssi_home_layout.setText("RSSI LIMIT: " + String.valueOf(-(progressSeekBar+RSSI_UNIT)) + " dBm");
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+                RSSI_VALUE = -(progressSeekBar+RSSI_UNIT);
+            }
+        });
+
         button_upload_home_layout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -365,7 +402,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                     timer.start();
                 }
                 else{
-                    Utility.makeToast(MainActivity.this,"Device Name needsto be at least 1 character!",0);
+                    Utility.makeToast(MainActivity.this,"Device Name needs to be at least 1 character!",0);
                 }
             }
         });
@@ -424,7 +461,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
     }
 
     private void startDfuService(BluetoothDevice mSelectedDevice){
-        System.out.println("Start DFU Service!" + "\n" + "Device uploading: " + mSelectedDevice.getAddress());
+        //System.out.println("Start DFU Service!" + "\n" + "Device uploading: " + mSelectedDevice.getAddress());
         final DfuServiceInitiator starter = new DfuServiceInitiator(mSelectedDevice.getAddress())
                 .setDeviceName(mSelectedDevice.getName())
                 .setKeepBond(false);
@@ -445,7 +482,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         // Init packet is required by Bootloader/DFU from SDK 7.0+ if HEX or BIN file is given above.
         // In case of a ZIP file, the init packet (a DAT file) must be included inside the ZIP file.
         if (fileType == DfuService.TYPE_AUTO) {
-            System.out.println("Uri: " + fileStreamUri + "\n" + "Path: " + filePath);
+            //System.out.println("Uri: " + fileStreamUri + "\n" + "Path: " + filePath);
             starter.setZip(fileStreamUri, filePath);
         }
         else {
@@ -640,9 +677,11 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         //Scan Results
 
         if(String.valueOf(o).equals("stop")){
-            System.out.println("SCAN STOPPED!");
+            Log.d("CHECK22", "Scan Stopped!");
             return;
         }
+
+        Log.d("CHECK22", "Scanning...");
 
         ScanResult result = (ScanResult) o;
         device = result.getDevice();
@@ -650,7 +689,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         if(!OTA_ENABLED) {
 
             try {
-                if (device.getName().toLowerCase().contains(edit_name_home_layout.getText().toString().toLowerCase())) {
+                if (device.getName().toLowerCase().contains(edit_name_home_layout.getText().toString().toLowerCase()) && result.getRssi() >= RSSI_VALUE) {
                     //Device Name scelto
                     if (mac_listened.size() > 0) {
                         boolean found = false;
@@ -688,9 +727,8 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         }
         else{
             //Scan per dispositivo OTA
-
             try{
-                if (device.getName().equalsIgnoreCase("DfuTarg")) {
+                if (device.getName().equalsIgnoreCase("DfuTarg") && result.getRssi() >= RSSI_VALUE) {
                     //Device Name scelto
                     if (be.IsScanning()) be.StopScan();
                     startDfuService(device);
@@ -699,8 +737,6 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
             catch(Exception e){
                 //Do nothing
             }
-
-
         }
 
     }
@@ -712,6 +748,9 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 super.onConnectionStateChange(gatt, status, newState);
 
                 if(newState == BluetoothGatt.STATE_CONNECTED){
+
+                    Log.d("CHECK22", "CONNECTED TO DEVICE: " + gatt.getDevice().getAddress().toUpperCase());
+
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -725,9 +764,17 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                     bluetoothGatt.discoverServices();
                 }
                 else if(newState == BluetoothGatt.STATE_DISCONNECTED){
+                    Log.d("CHECK22", "DISCONNECTED FROM DEVICE: " + gatt.getDevice().getAddress().toUpperCase());
                     CONNECTION_STATE = false;
                     if(OTA_ENABLED){
                         if(!be.IsScanning())    be.StartScan(0);
+                    }
+                    else if(!OTA_ENABLED && active_layout == ACTIVE_LAYOUT.UPLOAD){
+                        if(!be.IsScanning())    be.StartScan(0);
+                        txt_state_upload_layout.setText("SEARCHING BEACONS...");
+                        txt_progress_upload_layout.setText("");
+                        if(progressBar.getVisibility() != View.GONE) progressBar.setVisibility(View.GONE);
+                        timer.start();
                     }
                 }
             }
@@ -762,11 +809,11 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 }
 
                 if(ff8a != null && ff8b != null && ffaa != null){
-                    System.out.println("Beacon supports OTA!");
+                    Log.d("CHECH22", "BEACON SUPPORTS OTA! ");
                     gatt.writeCharacteristic(ff8a);
                 }
                 else{
-                    System.out.println("Beacon doesn't support OTA!");
+                    Log.d("CHECK22", "BEACON DOESN'T SUPPORT OTA");
                     gatt.disconnect();
                 }
 
@@ -784,7 +831,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                     gatt.writeCharacteristic(ff8b);
                 }
                 else if(characteristic == ff8b){
-                    System.out.println("Beacon paired!");
+                    Log.d("CHECK22", "BEACON PAIRED!");
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -794,7 +841,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                     gatt.writeCharacteristic(ffaa);
                 }
                 else if(characteristic == ffaa){
-                    System.out.println("OTA Activated!");
+                    Log.d("CHECK22", "OTA ACTIVATED!");
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
