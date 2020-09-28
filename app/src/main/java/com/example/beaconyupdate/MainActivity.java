@@ -160,7 +160,8 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
     private TextView txt_fw_home_layout,txt_state_upload_layout,txt_progress_upload_layout,txt_rssi_home_layout;
     private SeekBar seekbar_rssi_home_layout;
     private ConstraintLayout home_layout,upload_layout;
-    private ArrayList<String> mac_listened;
+    //private ArrayList<String> mac_listened;
+    private String last_mac;
     private boolean CONNECTION_STATE;
     private final int SELECT_FILE_REQ = 1;
     private static final int SELECT_INIT_FILE_REQ = 2;
@@ -297,11 +298,9 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
 
         tone = new ToneGenerator(AudioManager.STREAM_MUSIC, 100);
 
-        mac_listened = new ArrayList<String>();
+        //mac_listened = new ArrayList<String>();
         CONNECTION_STATE = false;
 
-        be = new BeUtility(this);
-        be.AddObserver();
 
         if (Build.VERSION.SDK_INT > 23) {
             //SE LA VERSIONE DI ANDROID E' MARSHMELLOW O SUPERIORE, BISOGNA CHIEDERE I PERMESSI PER FAR PARTIRE LA SCAN
@@ -396,6 +395,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                     return;
                 }
                 if(edit_name_home_layout.getText().length() > 0){
+                    last_mac = "";
                     STOP_SCAN = false;
                     be.StartScan(0);
                     active_layout = ACTIVE_LAYOUT.UPLOAD;
@@ -539,6 +539,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 try {
                     if (!controller.isAborted()) controller.abort();
                 }catch(Exception e){}
+                last_mac = "";
                 timer.cancel();
                 upload_layout.setVisibility(View.GONE);
                 home_layout.setVisibility(View.VISIBLE);
@@ -546,10 +547,10 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 txt_progress_upload_layout.setText("");
                 txt_state_upload_layout.setText("");
                 if(progressBar.getVisibility() != View.GONE) progressBar.setVisibility(View.GONE);
-                if(!mac_listened.isEmpty()) mac_listened.clear();
+                //if(!mac_listened.isEmpty()) mac_listened.clear();
                 if(CONNECTION_STATE)    bluetoothGatt.disconnect();
                 if(be.IsScanning()) be.StopScan();
-                bluetoothGatt.close();
+                if(bluetoothGatt != null)   bluetoothGatt.close();
                 break;
         }
     }
@@ -672,7 +673,8 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
             startActivityForResult(enableBluetooth,BLUETOOTH_ON_OFF);
         }
         else{
-            //Do nothing
+            be = new BeUtility(this);
+            be.AddObserver();
         }
 
     }
@@ -696,11 +698,23 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
 
         ScanResult result = (ScanResult) o;
         device = result.getDevice();
-
         if(!OTA_ENABLED) {
 
             try {
-                if (device.getName().toLowerCase().contains(edit_name_home_layout.getText().toString().toLowerCase()) && result.getRssi() >= RSSI_VALUE) {
+                if (device.getName().toLowerCase().contains(edit_name_home_layout.getText().toString().toLowerCase()) && result.getRssi() >= RSSI_VALUE && !result.getDevice().getAddress().toUpperCase().equals(last_mac.toUpperCase())) {
+
+                    STOP_SCAN = true;
+                    last_mac = result.getDevice().getAddress();
+                    bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
+                    timer.cancel();
+
+
+
+
+
+
+
+                /*
                     //Device Name scelto
                     if (mac_listened.size() > 0) {
                         boolean found = false;
@@ -725,10 +739,14 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                             bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
                             mac_listened.add(device.getAddress());
                     }
+
+                    */
+
                 }
             } catch (Exception e) {
                 //Do nothing
             }
+
 
 
         }
@@ -774,6 +792,9 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 else if(newState == BluetoothGatt.STATE_DISCONNECTED){
                     Log.d("CHECK22", "DISCONNECTED FROM DEVICE: " + gatt.getDevice().getAddress().toUpperCase());
                     CONNECTION_STATE = false;
+
+                    if(bluetoothGatt != null)   bluetoothGatt.close();
+
                     /*if(OTA_ENABLED){
                         if(!be.IsScanning())    be.StartScan(0);
                     }
