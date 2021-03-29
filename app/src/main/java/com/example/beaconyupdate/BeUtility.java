@@ -38,22 +38,14 @@ public class BeUtility extends Observable{
     ScanFilter scanFilter;
     List<ScanFilter> filters = new ArrayList<ScanFilter>();
 
-    public BeUtility(final Activity calling,String deviceFilter){
+    public BeUtility(final Activity calling){
         this.calling = calling;
         SCAN_STATE = false;
         manager = (BluetoothManager) calling.getSystemService(Context.BLUETOOTH_SERVICE);
         adapter = manager.getAdapter();
         scanner = adapter.getBluetoothLeScanner();
 
-        scanSettings = new ScanSettings.Builder()
-                .setScanMode( ScanSettings.SCAN_MODE_LOW_LATENCY )
-                .build();
 
-        scanFilter = new ScanFilter.Builder()
-                //.setServiceUuid( new ParcelUuid(UUID.fromString(UUID_TO_FILTER) ) )
-                .setDeviceName(deviceFilter)
-                .build();
-        filters.add(scanFilter);
 
 
         callback = new ScanCallback() {
@@ -72,16 +64,27 @@ public class BeUtility extends Observable{
         };
     }
 
-    public void StartScan(int interval){
+    public void StartScan(int interval,String deviceToFilter){
 
         //if(MainActivity.RED_LIGHT)  MainActivity.RED_LIGHT = false;
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
-                scanner.startScan(callback);
+                scanner.startScan(filters,scanSettings,callback);
             }
         });
         SCAN_STATE = true;
+
+        scanSettings = new ScanSettings.Builder()
+                .setScanMode( ScanSettings.SCAN_MODE_LOW_LATENCY )
+                .build();
+
+        scanFilter = new ScanFilter.Builder()
+                //.setServiceUuid( new ParcelUuid(UUID.fromString(UUID_TO_FILTER) ) )
+                .setDeviceName(deviceToFilter)
+                .build();
+        filters.add(scanFilter);
+
         if(interval == 0)   return;
         handler = new Handler();
         handler.postDelayed(new Runnable() {

@@ -397,7 +397,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
                 if(edit_name_home_layout.getText().length() > 0){
                     last_mac = "";
                     STOP_SCAN = false;
-                    be.StartScan(0);
+                    be.StartScan(0,edit_name_home_layout.getText().toString());
                     active_layout = ACTIVE_LAYOUT.UPLOAD;
                     home_layout.setVisibility(View.GONE);
                     upload_layout.setVisibility(View.VISIBLE);
@@ -673,7 +673,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
             startActivityForResult(enableBluetooth,BLUETOOTH_ON_OFF);
         }
         else{
-            be = new BeUtility(this,edit_name_home_layout.getText().toString());
+            be = new BeUtility(this);
             be.AddObserver();
         }
 
