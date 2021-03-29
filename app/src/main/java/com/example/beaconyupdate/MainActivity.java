@@ -673,7 +673,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
             startActivityForResult(enableBluetooth,BLUETOOTH_ON_OFF);
         }
         else{
-            be = new BeUtility(this);
+            be = new BeUtility(this,edit_name_home_layout.getText().toString());
             be.AddObserver();
         }
 
@@ -701,18 +701,12 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         if(!OTA_ENABLED) {
 
             try {
-                if (device.getName().toLowerCase().contains(edit_name_home_layout.getText().toString().toLowerCase()) && result.getRssi() >= RSSI_VALUE && !result.getDevice().getAddress().toUpperCase().equals(last_mac.toUpperCase())) {
+                if (result.getRssi() >= RSSI_VALUE && !result.getDevice().getAddress().toUpperCase().equals(last_mac.toUpperCase())) {
 
                     STOP_SCAN = true;
                     last_mac = result.getDevice().getAddress();
                     bluetoothGatt = device.connectGatt(MainActivity.this, false, gattCallback);
                     timer.cancel();
-
-
-
-
-
-
 
                 /*
                     //Device Name scelto

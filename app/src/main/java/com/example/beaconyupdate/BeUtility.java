@@ -6,13 +6,17 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Handler;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
 
@@ -30,13 +34,26 @@ public class BeUtility extends Observable{
     ScanCallback callback;
     Handler handler;
     boolean SCAN_STATE;
+    ScanSettings scanSettings;
+    ScanFilter scanFilter;
+    List<ScanFilter> filters = new ArrayList<ScanFilter>();
 
-    public BeUtility(final Activity calling){
+    public BeUtility(final Activity calling,String deviceFilter){
         this.calling = calling;
         SCAN_STATE = false;
         manager = (BluetoothManager) calling.getSystemService(Context.BLUETOOTH_SERVICE);
         adapter = manager.getAdapter();
         scanner = adapter.getBluetoothLeScanner();
+
+        scanSettings = new ScanSettings.Builder()
+                .setScanMode( ScanSettings.SCAN_MODE_LOW_LATENCY )
+                .build();
+
+        scanFilter = new ScanFilter.Builder()
+                //.setServiceUuid( new ParcelUuid(UUID.fromString(UUID_TO_FILTER) ) )
+                .setDeviceName(deviceFilter)
+                .build();
+        filters.add(scanFilter);
 
 
         callback = new ScanCallback() {
