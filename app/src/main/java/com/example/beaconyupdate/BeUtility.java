@@ -65,14 +65,6 @@ public class BeUtility extends Observable{
     }
 
     public void StartScan(int interval,String deviceToFilter){
-
-        //if(MainActivity.RED_LIGHT)  MainActivity.RED_LIGHT = false;
-        AsyncTask.execute(new Runnable() {
-            @Override
-            public void run() {
-                scanner.startScan(filters,scanSettings,callback);
-            }
-        });
         SCAN_STATE = true;
 
         scanSettings = new ScanSettings.Builder()
@@ -84,6 +76,13 @@ public class BeUtility extends Observable{
                 .setDeviceName(deviceToFilter)
                 .build();
         filters.add(scanFilter);
+
+        AsyncTask.execute(new Runnable() {
+            @Override
+            public void run() {
+                scanner.startScan(filters,scanSettings,callback);
+            }
+        });
 
         if(interval == 0)   return;
         handler = new Handler();
