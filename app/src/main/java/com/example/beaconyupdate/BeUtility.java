@@ -67,7 +67,7 @@ public class BeUtility extends Observable{
     public void StartScan(int interval,String deviceToFilter){
         SCAN_STATE = true;
 
-        scanSettings = new ScanSettings.Builder()
+        /*scanSettings = new ScanSettings.Builder()
                 .setScanMode( ScanSettings.SCAN_MODE_LOW_LATENCY )
                 .build();
 
@@ -75,12 +75,12 @@ public class BeUtility extends Observable{
                 //.setServiceUuid( new ParcelUuid(UUID.fromString(UUID_TO_FILTER) ) )
                 .setDeviceName(deviceToFilter)
                 .build();
-        filters.add(scanFilter);
+        filters.add(scanFilter);*/
 
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
-                scanner.startScan(filters,scanSettings,callback);
+                scanner.startScan(callback);
             }
         });
 

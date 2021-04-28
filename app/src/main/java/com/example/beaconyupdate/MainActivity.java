@@ -701,7 +701,7 @@ public class MainActivity extends AppCompatActivity implements Observer, LoaderM
         if(!OTA_ENABLED) {
 
             try {
-                if (result.getRssi() >= RSSI_VALUE && !result.getDevice().getAddress().toUpperCase().equals(last_mac.toUpperCase())) {
+                if (result.getRssi() >= RSSI_VALUE && !result.getDevice().getAddress().toUpperCase().equals(last_mac.toUpperCase()) && device.getName().toLowerCase().contains(edit_name_home_layout.getText().toString().toLowerCase())) {
 
                     STOP_SCAN = true;
                     last_mac = result.getDevice().getAddress();
